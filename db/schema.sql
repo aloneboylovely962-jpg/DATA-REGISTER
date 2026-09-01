@@ -1,5 +1,5 @@
--- DATA-REGISTER Phase 2
--- Business, location, user and account foundation.
+-- DATA-REGISTER Phase 3
+-- Business, location, user, account and transaction foundation.
 -- Run this file once against the Railway PostgreSQL database.
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
@@ -50,9 +50,30 @@ CREATE TABLE IF NOT EXISTS accounts (
   UNIQUE (business_id, name)
 );
 
+CREATE TABLE IF NOT EXISTS transactions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  business_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+  location_id UUID REFERENCES locations(id) ON DELETE SET NULL,
+  transaction_type TEXT NOT NULL CHECK (transaction_type IN ('INCOME','EXPENSE','TRANSFER','ADJUSTMENT')),
+  amount NUMERIC(18,2) NOT NULL CHECK (amount > 0),
+  from_account_id UUID REFERENCES accounts(id) ON DELETE RESTRICT,
+  to_account_id UUID REFERENCES accounts(id) ON DELETE RESTRICT,
+  affects_profit BOOLEAN NOT NULL DEFAULT TRUE,
+  category TEXT,
+  reference TEXT,
+  note TEXT,
+  transaction_date DATE NOT NULL DEFAULT CURRENT_DATE,
+  created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CHECK (from_account_id IS NOT NULL OR to_account_id IS NOT NULL)
+);
+
 CREATE INDEX IF NOT EXISTS idx_locations_business ON locations(business_id);
 CREATE INDEX IF NOT EXISTS idx_users_business ON users(business_id);
 CREATE INDEX IF NOT EXISTS idx_accounts_business ON accounts(business_id);
+CREATE INDEX IF NOT EXISTS idx_transactions_business_date ON transactions(business_id, transaction_date DESC);
+CREATE INDEX IF NOT EXISTS idx_transactions_from_account ON transactions(from_account_id);
+CREATE INDEX IF NOT EXISTS idx_transactions_to_account ON transactions(to_account_id);
 
 INSERT INTO businesses (name, code)
 VALUES ('RFC / MGS', 'RFC-MGS')
